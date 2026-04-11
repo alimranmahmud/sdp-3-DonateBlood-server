@@ -115,9 +115,9 @@ connectDB();
 
 
 
+// user------------------------------------------------------------------------------
 
-
-// user profile 
+// user profile post for registration and update profile
 app.post('/users', async (req, res) => {
   const userInfo = req.body;
   userInfo.createdAt = new Date();
@@ -128,12 +128,13 @@ app.post('/users', async (req, res) => {
 
 })
 
-
-app.get('/users',  async (req, res) => {
+// user profile  get for all user 
+app.get('/users', async (req, res) => {
   const result = await userCollections.find().toArray()
   res.status(200).send(result)
 })
 
+// user profile get for single user with email
 app.get('/users/role/:email', async (req, res) => {
   const email = req.params.email;
   const query = { email: email }
@@ -141,12 +142,10 @@ app.get('/users/role/:email', async (req, res) => {
   res.send(result)
 })
 
-// app.get('/users/:email',async(req,res)=>{
-//   const email = req.params.email;
-//   const query = {email:email}
-//   const result = await userCollections.findOne(query);
-//   res.send(result)
-// })
+
+
+
+// My request ----------------------------------------------------------------------------------------------
 
 app.get('/myRequest', async (req, res) => {
   try {
@@ -175,20 +174,8 @@ app.get('/myRequest', async (req, res) => {
   }
 });
 
-app.patch('/update/user/status', async (req, res) => {
-  const { email, status } = req.query;
-  const query = { email: email };
-  const updateStatus = {
-    $set: {
-      status: status
-    }
-  }
-  const result = await userCollections.updateOne(query, updateStatus);
-  res.send(result)
-})
 
-//request collection
-app.post('/requests', async (req, res) => {
+app.post('/myRequests', async (req, res) => {
   const data = req.body;
   data.createdAt = new Date();
   const result = await requestCollections.insertOne(data)
@@ -196,6 +183,8 @@ app.post('/requests', async (req, res) => {
 
 })
 
+
+// All request ----------------------------------------------------------------------------------------------  
 app.get('/allRequest', async (req, res) => {
   try {
     const result = await requestCollections.find().toArray();
@@ -205,9 +194,10 @@ app.get('/allRequest', async (req, res) => {
   }
 });
 
-// view Details 
 
-app.get('/request/:id', async (req, res) => {
+
+// view Details 
+app.get('/viewDetails/:id', async (req, res) => {
   try {
     const id = req.params.id;
 
@@ -224,7 +214,7 @@ app.get('/request/:id', async (req, res) => {
 
 // confim 
 
-app.patch('/request/status/:id', async (req, res) => {
+app.patch('/viewDetails/status/:id', async (req, res) => {
   try {
     const id = req.params.id;
 
@@ -245,7 +235,7 @@ app.patch('/request/status/:id', async (req, res) => {
 });
 
 
-
+// Notification-----------------------------------------------------------------------------------------------------
 app.get('/notifications/:email', async (req, res) => {
   const email = req.params.email;
 
@@ -267,8 +257,7 @@ app.post('/notifications', async (req, res) => {
 });
 
 
-// update part notification hello imran 
-
+// update part notification 
 app.patch('/request/approve/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -302,40 +291,39 @@ app.patch('/request/approve/:id', async (req, res) => {
 
 
 
-// Delete notification 
+// Delete notification
 app.delete('/notifications/:id', async (req, res) => {
-  const id = req.params.id;
-  const result = await notificationCollections.deleteOne({
-    _id: new ObjectId(id)
-  });
-  res.send(result)
-})
+  try {
+    const { id } = req.params;
 
-// requst collection status change with notification system 
-// app.patch('/request/approve/:id', async (req, res) => {
-//   try {
-//     const id = req.params.id;
+    const notification = await notificationCollections.findOne({
+      _id: new ObjectId(id)
+    });
 
-//     const result = await requestCollections.updateOne(
-//       { _id: new ObjectId(id) },
-//       {
-//         $set: {
-//           donation_status: 'accepted'
-//         }
-//       }
-//     );
+    if (!notification) {
+      return res.status(404).send({ error: 'Notification not found' });
+    }
 
-//     res.send(result);
+    const result = await notificationCollections.deleteOne({
+      _id: new ObjectId(id)
+    });
 
-//   } catch (error) {
-//     res.status(500).send({ error: error.message });
-//   }
-// });
+    if (notification.requestId) {
+      await requestCollections.updateOne(
+        { _id: new ObjectId(notification.requestId) },
+        { $set: { donation_status: 'pending' } }
+      );
+    }
 
-
+    return res.send(result);
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
 
 
-//Search
+
+//Search-----------------------------------------------------------------------------------------------------
 app.get('/searchRequest', async (req, res) => {
   try {
     const { bloodGroup, district, upazila } = req.query;
@@ -371,8 +359,3 @@ app.listen(port, () => {
   console.log(`🔥 Server running on port ${port}`);
 });
 
-
-
-
-//donateBlood
-//7pVBCh8cnCuw8GND

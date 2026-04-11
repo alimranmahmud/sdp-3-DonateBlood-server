@@ -73,33 +73,6 @@ admin.initializeApp({
 
 
 
-const verifyFBToken = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).send({ message: 'unauthorized access' });
-  }
-
-  const idToken = authHeader.startsWith('Bearer ')
-    ? authHeader.split(' ')[1]
-    : authHeader;
-
-  if (!idToken) {
-    return res.status(401).send({ message: 'unauthorized access' });
-  }
-
-  try {
-    const decoded = await admin.auth().verifyIdToken(idToken);
-    // console.log("decoded info", decoded)
-    req.decoded_email = decoded.email;
-    next();
-  } catch (error) {
-    return res.status(401).send({ message: 'unauthorized access' });
-  }
-};
-
-
-
 // MongoDB
 
 const uri = process.env.MONGODB_URI;
@@ -156,7 +129,7 @@ app.post('/users', async (req, res) => {
 })
 
 
-app.get('/users', verifyFBToken, async (req, res) => {
+app.get('/users',  async (req, res) => {
   const result = await userCollections.find().toArray()
   res.status(200).send(result)
 })
@@ -175,11 +148,15 @@ app.get('/users/role/:email', async (req, res) => {
 //   res.send(result)
 // })
 
-app.get('/myRequest', verifyFBToken, async (req, res) => {
+app.get('/myRequest', async (req, res) => {
   try {
-    const email = req.decoded_email;
-    const size = Number(req.query.size);
-    const page = Number(req.query.page);
+    const email = req.query.email;
+    const size = Number(req.query.size) || 10;
+    const page = Number(req.query.page) || 0;
+
+    if (!email) {
+      return res.status(400).send({ error: 'email query parameter is required' });
+    }
 
     const query = { requesterEmail: email };
 
@@ -211,7 +188,7 @@ app.patch('/update/user/status', async (req, res) => {
 })
 
 //request collection
-app.post('/requests', verifyFBToken, async (req, res) => {
+app.post('/requests', async (req, res) => {
   const data = req.body;
   data.createdAt = new Date();
   const result = await requestCollections.insertOne(data)

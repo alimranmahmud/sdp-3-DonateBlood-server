@@ -246,6 +246,14 @@ app.get('/notifications/:email', async (req, res) => {
   res.send(result);
 });
 
+app.get('/notifications', async (req, res) => {
+  try {
+    const result = await notificationCollections.find().toArray();
+    return res.send(result);
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
 
 
 app.post('/notifications', async (req, res) => {

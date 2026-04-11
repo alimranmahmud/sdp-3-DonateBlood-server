@@ -1,5 +1,4 @@
 
 .env
 node_modules
-firebase-admin.json
 FIREBASE_SERVICE_ACCOUNT.json

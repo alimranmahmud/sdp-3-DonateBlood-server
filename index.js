@@ -62,7 +62,9 @@ const client = new MongoClient(uri, {
   }
 });
 
-let userCollection; // 👈 globally declare
+let userCollections;
+let requestCollections;
+let notificationCollections; // 👈 globally declare
 
 async function connectDB() {
   try {
@@ -72,8 +74,11 @@ async function connectDB() {
     console.log("✅ Connected to MongoDB!");
 
     // ✅ Database + Collection define
-    const helloImranVai = client.db("HelloPagla"); // database name
-    userCollection = helloImranVai.collection("users"); // collection name
+
+    const database = client.db('DonateBlood');
+    userCollections = database.collection('users')
+    requestCollections = database.collection('request')
+    notificationCollections = database.collection('notifications');
 
   } catch (error) {
     console.error('❌ MongoDB error:', error.message);
@@ -88,244 +93,239 @@ connectDB();
 
 
 
-    // const database = client.db('DonateBlood');
-    // const userCollections = database.collection('user')
-    // const requestCollections = database.collection('request')
-    // const notificationCollections = database.collection('notifications');
+// user profile 
+app.post('/users', async (req, res) => {
+  const userInfo = req.body;
+  userInfo.createdAt = new Date();
+  userInfo.role = 'donor';
+  userInfo.status = 'active';
+  const result = await userCollections.insertOne(userInfo);
+  res.send(result)
 
-    // user profile 
-    app.post('/users', async (req, res) => {
-      const userInfo = req.body;
-      userInfo.createdAt = new Date();
-      userInfo.role = 'donor';
-      userInfo.status = 'active';
-      const result = await userCollections.insertOne(userInfo);
-      res.send(result)
-
-    })
+})
 
 
-    app.get('/users', verifyFBToken, async (req, res) => {
-      const result = await userCollections.find().toArray()
-      res.status(200).send(result)
-    })
+app.get('/users', verifyFBToken, async (req, res) => {
+  const result = await userCollections.find().toArray()
+  res.status(200).send(result)
+})
 
-    app.get('/users/role/:email', async (req, res) => {
-      const email = req.params.email;
-      const query = { email: email }
-      const result = await userCollections.findOne(query)
-      res.send(result)
-    })
+app.get('/users/role/:email', async (req, res) => {
+  const email = req.params.email;
+  const query = { email: email }
+  const result = await userCollections.findOne(query)
+  res.send(result)
+})
 
-    // app.get('/users/:email',async(req,res)=>{
-    //   const email = req.params.email;
-    //   const query = {email:email}
-    //   const result = await userCollections.findOne(query);
-    //   res.send(result)
-    // })
+// app.get('/users/:email',async(req,res)=>{
+//   const email = req.params.email;
+//   const query = {email:email}
+//   const result = await userCollections.findOne(query);
+//   res.send(result)
+// })
 
-    app.get('/myRequest', verifyFBToken, async (req, res) => {
-      try {
-        const email = req.decoded_email;
-        const size = Number(req.query.size);
-        const page = Number(req.query.page);
+app.get('/myRequest', verifyFBToken, async (req, res) => {
+  try {
+    const email = req.decoded_email;
+    const size = Number(req.query.size);
+    const page = Number(req.query.page);
 
-        const query = { requesterEmail: email };
+    const query = { requesterEmail: email };
 
-        const result = await requestCollections
-          .find(query)
-          .limit(size)
-          .skip(page * size)
-          .toArray();
+    const result = await requestCollections
+      .find(query)
+      .limit(size)
+      .skip(page * size)
+      .toArray();
 
-        const totalRequest = await requestCollections.countDocuments(query);
+    const totalRequest = await requestCollections.countDocuments(query);
 
-        res.send({ request: result, totalRequest });
+    res.send({ request: result, totalRequest });
 
-      } catch (error) {
-        res.status(500).send({ error: error.message });
-      }
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+app.patch('/update/user/status', async (req, res) => {
+  const { email, status } = req.query;
+  const query = { email: email };
+  const updateStatus = {
+    $set: {
+      status: status
+    }
+  }
+  const result = await userCollections.updateOne(query, updateStatus);
+  res.send(result)
+})
+
+//request collection
+app.post('/requests', verifyFBToken, async (req, res) => {
+  const data = req.body;
+  data.createdAt = new Date();
+  const result = await requestCollections.insertOne(data)
+  res.send(result)
+
+})
+
+app.get('/allRequest', async (req, res) => {
+  try {
+    const result = await requestCollections.find().toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// view Details 
+
+app.get('/request/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const result = await requestCollections.findOne({
+      _id: new ObjectId(id)
     });
 
-    app.patch('/update/user/status', async (req, res) => {
-      const { email, status } = req.query;
-      const query = { email: email };
-      const updateStatus = {
+    res.send(result);
+
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// confim 
+
+app.patch('/request/status/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const result = await requestCollections.updateOne(
+      { _id: new ObjectId(id) },
+      {
         $set: {
-          status: status
+          donation_status: 'process'
         }
       }
-      const result = await userCollections.updateOne(query, updateStatus);
-      res.send(result)
-    })
+    );
 
-    //request collection
-    app.post('/requests', verifyFBToken, async (req, res) => {
-      const data = req.body;
-      data.createdAt = new Date();
-      const result = await requestCollections.insertOne(data)
-      res.send(result)
+    res.send(result);
 
-    })
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
-    app.get('/allRequest', async (req, res) => {
-      try {
-        const result = await requestCollections.find().toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ error: error.message });
+
+
+app.get('/notifications/:email', async (req, res) => {
+  const email = req.params.email;
+
+  const result = await notificationCollections
+    .find({ requesterEmail: email }) // 🔥 filter
+    .toArray();
+
+  res.send(result);
+});
+
+
+
+app.post('/notifications', async (req, res) => {
+  const notification = req.body;
+
+  const result = await notificationCollections.insertOne(notification);
+
+  res.send(result);
+});
+
+
+// update part notification hello imran 
+
+app.patch('/request/approve/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    // 🔥 1. request status update
+    await requestCollections.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          donation_status: 'accepted'
+        }
       }
-    });
+    );
 
-    // view Details 
-
-    app.get('/request/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        const result = await requestCollections.findOne({
-          _id: new ObjectId(id)
-        });
-
-        res.send(result);
-
-      } catch (error) {
-        res.status(500).send({ error: error.message });
+    // 🔥 2. notification status update
+    await notificationCollections.updateOne(
+      { requestId: id },
+      {
+        $set: {
+          status: 'accepted'
+        }
       }
-    });
+    );
 
-    // confim 
+    res.send({ success: true });
 
-    app.patch('/request/status/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        const result = await requestCollections.updateOne(
-          { _id: new ObjectId(id) },
-          {
-            $set: {
-              donation_status: 'process'
-            }
-          }
-        );
-
-        res.send(result);
-
-      } catch (error) {
-        res.status(500).send({ error: error.message });
-      }
-    });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
 
 
-    app.get('/notifications/:email', async (req, res) => {
-      const email = req.params.email;
+// Delete notification 
+app.delete('/notifications/:id', async (req, res) => {
+  const id = req.params.id;
+  const result = await notificationCollections.deleteOne({
+    _id: new ObjectId(id)
+  });
+  res.send(result)
+})
 
-      const result = await notificationCollections
-        .find({ requesterEmail: email }) // 🔥 filter
-        .toArray();
+// requst collection status change with notification system 
+// app.patch('/request/approve/:id', async (req, res) => {
+//   try {
+//     const id = req.params.id;
 
-      res.send(result);
-    });
+//     const result = await requestCollections.updateOne(
+//       { _id: new ObjectId(id) },
+//       {
+//         $set: {
+//           donation_status: 'accepted'
+//         }
+//       }
+//     );
 
+//     res.send(result);
 
-
-    app.post('/notifications', async (req, res) => {
-      const notification = req.body;
-
-      const result = await notificationCollections.insertOne(notification);
-
-      res.send(result);
-    });
-
-
-    // update part notification hello imran 
-
-    app.patch('/request/approve/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        // 🔥 1. request status update
-        await requestCollections.updateOne(
-          { _id: new ObjectId(id) },
-          {
-            $set: {
-              donation_status: 'accepted'
-            }
-          }
-        );
-
-        // 🔥 2. notification status update
-        await notificationCollections.updateOne(
-          { requestId: id },
-          {
-            $set: {
-              status: 'accepted'
-            }
-          }
-        );
-
-        res.send({ success: true });
-
-      } catch (error) {
-        res.status(500).send({ error: error.message });
-      }
-    });
-
-
-
-    // Delete notification 
-    app.delete('/notifications/:id', async (req, res) => {
-      const id = req.params.id;
-      const result = await notificationCollections.deleteOne({
-        _id: new ObjectId(id)
-      });
-      res.send(result)
-    })
-
-    // requst collection status change with notification system 
-    // app.patch('/request/approve/:id', async (req, res) => {
-    //   try {
-    //     const id = req.params.id;
-
-    //     const result = await requestCollections.updateOne(
-    //       { _id: new ObjectId(id) },
-    //       {
-    //         $set: {
-    //           donation_status: 'accepted'
-    //         }
-    //       }
-    //     );
-
-    //     res.send(result);
-
-    //   } catch (error) {
-    //     res.status(500).send({ error: error.message });
-    //   }
-    // });
+//   } catch (error) {
+//     res.status(500).send({ error: error.message });
+//   }
+// });
 
 
 
 
-    //Search
-    app.get('/searchRequest', async (req, res) => {
-      try {
-        const { bloodGroup, district, upazila } = req.query;
+//Search
+app.get('/searchRequest', async (req, res) => {
+  try {
+    const { bloodGroup, district, upazila } = req.query;
 
-        const query = {};
+    const query = {};
 
-        if (bloodGroup) query.bloodGroup = bloodGroup;
-        if (district) query.district = district;
-        if (upazila) query.upazila = upazila;
+    if (bloodGroup) query.bloodGroup = bloodGroup;
+    if (district) query.district = district;
+    if (upazila) query.upazila = upazila;
 
-        const result = await requestCollections.find(query).toArray();
+    const result = await requestCollections.find(query).toArray();
 
-        res.send(result);
+    res.send(result);
 
-      } catch (error) {
-        res.status(500).send({ error: error.message });
-      }
-    });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
 
 

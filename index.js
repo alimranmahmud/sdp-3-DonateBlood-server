@@ -20,8 +20,26 @@ app.use(express.json());
 
 
 
-const admin = require("firebase-admin");
-const serviceAccount = require("./firebase-admin.json");
+const fs = require('fs');
+const path = require('path');
+const admin = require('firebase-admin');
+
+const firebaseServiceAccountPath =
+  process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+  (() => {
+    const candidates = ['./firebase-admin.json', './FIREBASE_SERVICE_ACCOUNT.json'];
+    return candidates.find((candidate) =>
+      fs.existsSync(path.resolve(__dirname, candidate))
+    );
+  })();
+
+if (!firebaseServiceAccountPath) {
+  throw new Error(
+    'Firebase service account JSON not found. Add firebase-admin.json or set FIREBASE_SERVICE_ACCOUNT_PATH in .env'
+  );
+}
+
+const serviceAccount = require(path.resolve(__dirname, firebaseServiceAccountPath));
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -30,14 +48,21 @@ admin.initializeApp({
 
 
 const verifyFBToken = async (req, res, next) => {
-  const token = req.headers.authorization;
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
+  if (!authHeader) {
+    return res.status(401).send({ message: 'unauthorized access' });
+  }
+
+  const idToken = authHeader.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : authHeader;
+
+  if (!idToken) {
     return res.status(401).send({ message: 'unauthorized access' });
   }
 
   try {
-    const idToken = token.split(' ')[1];
     const decoded = await admin.auth().verifyIdToken(idToken);
     // console.log("decoded info", decoded)
     req.decoded_email = decoded.email;

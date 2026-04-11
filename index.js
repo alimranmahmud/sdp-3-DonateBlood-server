@@ -24,22 +24,48 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const firebaseServiceAccountPath =
-  process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-  (() => {
-    const candidates = ['./firebase-admin.json', './FIREBASE_SERVICE_ACCOUNT.json'];
-    return candidates.find((candidate) =>
-      fs.existsSync(path.resolve(__dirname, candidate))
+const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+const firebaseServiceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+const firebaseServiceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+let serviceAccount;
+
+if (firebaseServiceAccountJson || firebaseServiceAccountBase64) {
+  const rawValue = firebaseServiceAccountJson
+    ? firebaseServiceAccountJson
+    : Buffer.from(firebaseServiceAccountBase64, 'base64').toString('utf8');
+
+  try {
+    serviceAccount = JSON.parse(rawValue);
+  } catch (error) {
+    throw new Error(
+      'Failed to parse FIREBASE_SERVICE_ACCOUNT JSON. Ensure it is valid JSON or base64 in FIREBASE_SERVICE_ACCOUNT_BASE64.'
     );
-  })();
+  }
+} else if (firebaseServiceAccountPath) {
+  const resolvedPath = path.resolve(__dirname, firebaseServiceAccountPath);
 
-if (!firebaseServiceAccountPath) {
-  throw new Error(
-    'Firebase service account JSON not found. Add firebase-admin.json or set FIREBASE_SERVICE_ACCOUNT_PATH in .env'
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(
+      `Firebase service account file not found at path: ${resolvedPath}`
+    );
+  }
+
+  serviceAccount = require(resolvedPath);
+} else {
+  const candidates = ['./firebase-admin.json', './FIREBASE_SERVICE_ACCOUNT.json'];
+  const foundFile = candidates.find((candidate) =>
+    fs.existsSync(path.resolve(__dirname, candidate))
   );
-}
 
-const serviceAccount = require(path.resolve(__dirname, firebaseServiceAccountPath));
+  if (!foundFile) {
+    throw new Error(
+      'Firebase service account JSON not found. Add firebase-admin.json, FIREBASE_SERVICE_ACCOUNT.json, set FIREBASE_SERVICE_ACCOUNT_PATH, or set FIREBASE_SERVICE_ACCOUNT in your environment.'
+    );
+  }
+
+  serviceAccount = require(path.resolve(__dirname, foundFile));
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
